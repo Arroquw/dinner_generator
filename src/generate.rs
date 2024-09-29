@@ -7,10 +7,17 @@ use std::{
 use crate::file_utils;
 use rand::Rng;
 
+#[derive(Debug)]
 #[allow(dead_code)]
 pub struct Generate {
     days: Vec<String>,
     pool: Vec<String>,
+}
+
+#[derive(Eq, PartialEq)]
+pub enum Collection {
+    Days,
+    Pool,
 }
 
 #[allow(dead_code)]
@@ -25,29 +32,30 @@ impl Generate {
         mut days: usize,
         reset: bool,
     ) -> Result<Self, io::Error> {
-        let pool = Self::prepare_pool(inputfile, outputfile, false)?;
-        Self::reset_output_file_if_needed(outputfile, reset)?;
+        let pool = Self::prepare_pool(inputfile, outputfile, reset)?;
+        if reset {
+            Self::reset_output_file(outputfile)?;
+        }
         if let Ok(entries) = file_utils::read_file(outputfile) {
             Ok(Self {
                 days: entries,
                 pool,
             })
         } else {
-            Self::generate_days(pool, &mut days)
+            Ok(Self::new(vec![], pool).generate_days(&mut days))
         }
     }
 
-    pub fn generate_days(mut pool: Vec<String>, days: &mut usize) -> Result<Self, io::Error> {
-        if *days > pool.len() {
-            *days = pool.len()
+    pub fn generate_days(&mut self, days: &mut usize) -> Self {
+        if *days > self.pool.len() {
+            *days = self.pool.len()
         }
 
-        let selected_entries = Self::select_random_entries(&mut pool, *days);
-
-        Ok(Self {
+        let selected_entries = Self::select_random_entries(&mut self.pool, *days);
+        Self {
             days: selected_entries,
-            pool: pool.to_vec(),
-        })
+            pool: self.pool.clone(),
+        }
     }
 
     fn prepare_pool(
@@ -56,16 +64,18 @@ impl Generate {
         reset: bool,
     ) -> Result<Vec<String>, io::Error> {
         if !std::path::Path::new(outputfile).exists() || reset {
+            println!("outputfile no exists");
             file_utils::read_file(inputfile)
         } else {
+            println!("{} outputfile exists", outputfile);
             let initial = file_utils::read_file(inputfile)?;
             let prev = file_utils::read_file(outputfile)?;
             Ok(Self::subtract_slices(initial, prev))
         }
     }
 
-    fn reset_output_file_if_needed(outputfile: &str, reset: bool) -> Result<(), io::Error> {
-        if std::path::Path::new(outputfile).exists() && reset {
+    fn reset_output_file(outputfile: &str) -> Result<(), io::Error> {
+        if std::path::Path::new(outputfile).exists() {
             println!("Resetting output");
             let _ = fs::remove_file::<_>(outputfile);
         }
@@ -94,12 +104,11 @@ impl Generate {
     }
 
     pub fn print_output(&self) {
-        for entry in &self.days {
-            println!("{}", entry);
+        for (idx, entry) in self.days.iter().enumerate() {
+            println!("{}: {}", idx, entry);
         }
     }
 
-    // Re-generates an entry in `days` by replacing an entry at index with a random one from the pool
     pub fn regenerate_entry(&mut self, index: usize) -> Result<(), &'static str> {
         if self.days.is_empty() || self.pool.is_empty() {
             return Err("No entries to regenerate");
@@ -120,12 +129,21 @@ impl Generate {
         Ok(())
     }
 
+    pub fn find_entry(&self, col: Collection, entry: &str) -> Option<usize> {
+        let entries = if col == Collection::Pool {
+            &self.pool
+        } else {
+            &self.days
+        };
+        entries.iter().position(|x| x == entry)
+    }
+
     pub fn add_to_pool(&mut self, new_entry: String) {
         self.pool.push(new_entry);
     }
 
     pub fn remove_from_pool(&mut self, entry: &str, input_file: &str) -> Result<(), io::Error> {
-        if let Some(pos) = self.pool.iter().position(|x| x == entry) {
+        if let Some(pos) = self.find_entry(Collection::Pool, entry) {
             self.pool.remove(pos);
             file_utils::comment_out_in_file(input_file, entry)?;
         }
@@ -137,7 +155,7 @@ impl Generate {
         old_entry: &str,
         new_entry: String,
     ) -> Result<(), &'static str> {
-        if let Some(pos) = self.pool.iter().position(|x| x == old_entry) {
+        if let Some(pos) = self.find_entry(Collection::Pool, old_entry) {
             self.pool[pos] = new_entry;
             Ok(())
         } else {
