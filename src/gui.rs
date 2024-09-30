@@ -1,21 +1,25 @@
 use crate::generate::Generate;
 use eframe::egui;
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone)]
 enum ActiveModal {
     AddToPool,
     EditEntry(usize, bool),
-    RemoveFromPool,
-    EditPoolEntry(usize),
-    SwapEntries,
+    RemoveFromPool(usize),
+    EditPoolEntry(usize, bool),
     None,
+}
+
+enum ActiveState {
+    Swapping { first_index: Option<usize> },
 }
 
 pub struct DinnerViewer {
     entries: Generate,
     active_modal: ActiveModal,
     input_entry: String,
-    selected_day: Option<usize>,
+    active_state: ActiveState,
+    showing_pool: bool,
 }
 
 impl DinnerViewer {
@@ -25,6 +29,90 @@ impl DinnerViewer {
             ..Self::default()
         }
     }
+
+    fn view_pool(&mut self, ui: &mut egui::Ui) {
+        let style = ui.style_mut();
+        style.spacing.button_padding = egui::vec2(30.0, 10.0); // Adjust padding (influences size)
+        style.visuals.widgets.active.rounding = egui::Rounding::same(45.0); // Optional rounding for button
+
+        let scroll_area = egui::ScrollArea::vertical()
+            .max_height(600.0)
+            .auto_shrink(false);
+
+        let mut string_set = false;
+        scroll_area.show(ui, |ui| {
+            for (index, entry) in self.entries.pool().clone().iter().enumerate() {
+                ui.vertical(|ui| {
+                    ui.menu_button(entry, |ui| {
+                        if ui.button("Edit").clicked() {
+                            if !string_set {
+                                self.input_entry = entry.to_owned();
+                                string_set = true;
+                            }
+
+                            self.active_modal = ActiveModal::EditPoolEntry(index, string_set);
+                        }
+                        if ui.button("Remove").clicked() {
+                            self.active_modal = ActiveModal::RemoveFromPool(index);
+                        }
+                    });
+                });
+            }
+        });
+        if ui.button("Add entry").clicked() {
+            self.active_modal = ActiveModal::AddToPool;
+        }
+    }
+
+    fn view_days(&mut self, ui: &mut egui::Ui) {
+        let style = ui.style_mut();
+        style.spacing.button_padding = egui::vec2(30.0, 10.0); // Adjust padding (influences size)
+        style.visuals.widgets.active.rounding = egui::Rounding::same(45.0); // Optional rounding for button
+
+        let scroll_area = egui::ScrollArea::vertical()
+            .max_height(600.0)
+            .auto_shrink(false);
+
+        let mut string_set = false;
+        scroll_area.show(ui, |ui| {
+            for (index, day) in self.entries.days().clone().iter().enumerate() {
+                ui.vertical(|ui| {
+                    ui.menu_button(day, |ui| {
+                        if ui.button("Regenerate Entry").clicked() {
+                            let _ = self.entries.regenerate_entry(index);
+                        }
+                        if ui.button("Edit entry").clicked() {
+                            if !string_set {
+                                self.input_entry = day.to_owned();
+                                string_set = true;
+                            }
+                            self.active_modal = ActiveModal::EditEntry(index, string_set);
+                        }
+                        if ui.button("Select for Swap").clicked() {
+                            match &mut self.active_state {
+                                ActiveState::Swapping { first_index: None } => {
+                                    self.active_state = ActiveState::Swapping {
+                                        first_index: Some(index),
+                                    };
+                                    ui.close_menu();
+                                }
+                                ActiveState::Swapping {
+                                    first_index: Some(first_index),
+                                } => {
+                                    // Perform the swap
+                                    let _ = self.entries.swap_days_entries(*first_index, index);
+                                    // Reset the state to Normal after swap
+                                    self.active_state = ActiveState::Swapping { first_index: None };
+                                    ui.close_menu();
+                                }
+                            }
+                        }
+                    });
+                });
+            }
+        });
+    }
+
     fn show_modal(&mut self, ctx: &egui::Context) {
         let mut entries = self.entries.clone();
         match self.active_modal {
@@ -33,24 +121,22 @@ impl DinnerViewer {
                     entries.add_to_pool(entry);
                 })
             }
+            ActiveModal::EditPoolEntry(index, mut set) => {
+                self.open_window("edit_entry", "Edit day entry", ctx, |entry| {
+                    let _ = entries.edit_pool_entry(index, entry);
+                    set = false;
+                })
+            }
             ActiveModal::EditEntry(index, mut set) => {
                 self.open_window("edit_entry", "Edit day entry", ctx, |entry| {
                     let _ = entries.edit_days_entry(index, entry);
                     set = false;
                 })
             }
-            ActiveModal::RemoveFromPool => {
-                //     ui.label("Select an entry to remove:");
-                //     for entry in &*self.entries.pool().clone() {
-                //         if ui.button(entry).clicked() {
-                //             let _ = self.entries.remove_from_pool(entry, "input.txt");
-                //         }
-                //     }
-                todo!()
+            ActiveModal::RemoveFromPool(index) => {
+                let _ = entries.remove_from_pool(index, "input.txt");
             }
-            ActiveModal::EditPoolEntry(_) => todo!(),
-            ActiveModal::SwapEntries => todo!(),
-            ActiveModal::None => todo!(),
+            ActiveModal::None => (),
         }
         self.entries = entries;
     }
@@ -82,85 +168,32 @@ impl Default for DinnerViewer {
             entries: Generate::read_entries("input.txt", "output.txt", 7, false).unwrap(),
             active_modal: ActiveModal::None,
             input_entry: "".to_owned(),
-            selected_day: Some(0_usize),
+            active_state: ActiveState::Swapping { first_index: None },
+            showing_pool: false,
         }
     }
 }
 
 impl eframe::App for DinnerViewer {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let mut string_set = false;
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ctx.set_pixels_per_point(1.5);
             ui.heading("dinner viewer");
-            for (index, day) in self.entries.days().clone().iter().enumerate() {
-                ui.horizontal(|ui| {
-                    if ui.button("Regenerate Entry").clicked() {
-                        let _ = self.entries.regenerate_entry(index);
-                    }
-                    if ui.button("Edit entry").clicked() {
-                        if !string_set {
-                            self.input_entry = day.to_owned();
-                            string_set = true;
-                        }
-                        self.active_modal = ActiveModal::EditEntry(index, string_set);
-                    }
-                    ui.label(day);
-                });
+            if self.showing_pool {
+                self.view_pool(ui);
+            } else {
+                self.view_days(ui);
+            }
 
-                //ui.menu_button(day, |ui| {
-                // if ui.button("Add to Pool").clicked() {
-                //     let mut new_entry = "";
-                //
-                //
-                //     if !new_entry.is_empty() {
-                //         self.entries.add_to_pool(new_entry.to_owned());
-                //     }
-                //     ui.close_menu();
-                // }
-                //
-                // if ui.button("Edit Day Entry").clicked() {
-                //     let mut new_value = String::new();
-                //     ui.text_edit_singleline(&mut new_value);
-                //     if !new_value.is_empty() {
-                //         let _ = self.entries.edit_days_entry(index, new_value);
-                //     }
-                // }
-                //
-                // if ui.button("Swap Entries").clicked() {
-                //     if self.swap_indices.is_none() {
-                //         self.swap_indices = Some((index, 0)); // select first entry
-                //     } else if let Some((first, _)) = self.swap_indices {
-                //         self.swap_indices = Some((first, index)); // select second entry
-                //         let _ = self.entries.swap_days_entries(first, index);
-                //         self.swap_indices = None;
-                //     }
-                // }
-                //
-                // if ui.button("Edit Pool Entry").clicked() {
-                //     ui.label("Select a pool entry to edit:");
-                //     for entry in &*self.entries.pool().clone() {
-                //         if ui.button(entry).clicked() {
-                //             let mut new_value = String::new();
-                //             ui.text_edit_singleline(&mut new_value);
-                //             if !new_value.is_empty() {
-                //                 let _ = self.entries.edit_pool_entry(entry, new_value);
-                //             }
-                //         }
-                //     }
-                // }
-                //});
-            }
-            if ui.button("Remove entry from pool").clicked() {
-                self.active_modal = ActiveModal::RemoveFromPool;
-            }
-            if ui.button("Add new entry to pool").clicked() {
-                self.active_modal = ActiveModal::AddToPool;
-            }
-            if ui.button("Swap Entries").clicked() {
-                self.active_modal = ActiveModal::SwapEntries;
-            }
-            if ui.button("Edit pool entry").clicked() {
-                self.active_modal = ActiveModal::EditPoolEntry(0);
+            if ui
+                .button(if self.showing_pool {
+                    "View Days"
+                } else {
+                    "View Pool"
+                })
+                .clicked()
+            {
+                self.showing_pool = !self.showing_pool;
             }
 
             if self.active_modal != ActiveModal::None {

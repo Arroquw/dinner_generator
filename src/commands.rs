@@ -53,7 +53,8 @@ fn edit(args: EditArgs) {
                 .entry()
                 .expect("Expected a value for entries to remove!")
             {
-                let _ = generate.remove_from_pool(i, &args.file_args().input_file().unwrap());
+                let _ = generate
+                    .remove_from_pool_by_strvalue(i, &args.file_args().input_file().unwrap());
             }
         }
         EditType::Entry => {
@@ -113,7 +114,7 @@ fn edit(args: EditArgs) {
             let _ = generate.swap_days_entries(old_pos, new_pos);
         }
         EditType::InputEntry => {
-            let _ = generate.edit_pool_entry(
+            let _ = generate.edit_pool_entry_by_strvalue(
                 &args.entry().expect("Pool entry to edit not found")[0],
                 args.entry().expect("Expected a value for pool entry")[1].to_owned(),
             );

@@ -150,7 +150,11 @@ impl Generate {
         self.pool.push(new_entry);
     }
 
-    pub fn remove_from_pool(&mut self, entry: &str, input_file: &str) -> Result<(), io::Error> {
+    pub fn remove_from_pool_by_strvalue(
+        &mut self,
+        entry: &str,
+        input_file: &str,
+    ) -> Result<(), io::Error> {
         if let Some(pos) = self.find_entry(Collection::Pool, entry) {
             self.pool.remove(pos);
             file_utils::comment_out_in_file(input_file, entry)?;
@@ -158,7 +162,13 @@ impl Generate {
         Ok(())
     }
 
-    pub fn edit_pool_entry(
+    pub fn remove_from_pool(&mut self, index: usize, input_file: &str) -> Result<(), io::Error> {
+        self.pool.remove(index);
+        file_utils::comment_out_in_file(input_file, &self.pool[index])?;
+        Ok(())
+    }
+
+    pub fn edit_pool_entry_by_strvalue(
         &mut self,
         old_entry: &str,
         new_entry: String,
@@ -169,6 +179,14 @@ impl Generate {
         } else {
             Err("Entry not found in pool")
         }
+    }
+
+    pub fn edit_pool_entry(&mut self, index: usize, new_entry: String) -> Result<(), &'static str> {
+        if index >= self.pool.len() {
+            return Err("Invalid index");
+        }
+        self.pool[index] = new_entry;
+        Ok(())
     }
 
     pub fn edit_days_entry(&mut self, index: usize, new_entry: String) -> Result<(), &'static str> {
