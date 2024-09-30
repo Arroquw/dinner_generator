@@ -7,7 +7,7 @@ use std::{
 use crate::file_utils;
 use rand::Rng;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct Generate {
     days: Vec<String>,
@@ -24,6 +24,14 @@ pub enum Collection {
 impl Generate {
     fn new(days: Vec<String>, pool: Vec<String>) -> Self {
         Self { days, pool }
+    }
+
+    pub fn days(&self) -> &Vec<String> {
+        &self.days
+    }
+
+    pub fn pool(&self) -> &Vec<String> {
+        &self.pool
     }
 
     pub fn read_entries(
