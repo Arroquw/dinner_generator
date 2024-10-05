@@ -36,10 +36,11 @@ impl DinnerViewer {
         style.visuals.widgets.active.rounding = egui::Rounding::same(45.0); // Optional rounding for button
 
         let scroll_area = egui::ScrollArea::vertical()
-            .max_height(600.0)
+            .max_height(400.0)
             .auto_shrink(false);
 
         let mut string_set = false;
+        ui.separator();
         scroll_area.show(ui, |ui| {
             for (index, entry) in self.entries.pool().clone().iter().enumerate() {
                 ui.vertical(|ui| {
@@ -59,6 +60,7 @@ impl DinnerViewer {
                 });
             }
         });
+        ui.separator();
         if ui.button("Add entry").clicked() {
             self.active_modal = ActiveModal::AddToPool;
         }
@@ -71,9 +73,10 @@ impl DinnerViewer {
 
         let scroll_area = egui::ScrollArea::vertical()
             .max_height(600.0)
-            .auto_shrink(false);
+            .auto_shrink(true);
 
         let mut string_set = false;
+        ui.separator();
         scroll_area.show(ui, |ui| {
             for (index, day) in self.entries.days().clone().iter().enumerate() {
                 ui.vertical(|ui| {
@@ -111,6 +114,10 @@ impl DinnerViewer {
                 });
             }
         });
+        ui.separator();
+        if ui.button("Regenerate").clicked() {
+            self.entries = self.entries.generate_days(&mut 7);
+        }
     }
 
     fn show_modal(&mut self, ctx: &egui::Context) {
