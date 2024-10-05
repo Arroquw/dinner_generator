@@ -1,5 +1,16 @@
 use crate::generate::Generate;
+use chrono::prelude::*;
 use eframe::egui;
+
+const DAYS: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
 
 #[derive(Eq, PartialEq, Clone)]
 enum ActiveModal {
@@ -20,6 +31,7 @@ pub struct DinnerViewer {
     input_entry: String,
     active_state: ActiveState,
     showing_pool: bool,
+    current_day: Weekday,
 }
 
 impl DinnerViewer {
@@ -30,13 +42,18 @@ impl DinnerViewer {
         }
     }
 
+    fn rotate_entries(&mut self) {
+        self.entries.remove_from_days(0);
+        let _ = self.entries.regenerate_entry(self.entries.days().len() - 1);
+    }
+
     fn view_pool(&mut self, ui: &mut egui::Ui) {
         let style = ui.style_mut();
         style.spacing.button_padding = egui::vec2(30.0, 10.0); // Adjust padding (influences size)
         style.visuals.widgets.active.rounding = egui::Rounding::same(45.0); // Optional rounding for button
 
         let scroll_area = egui::ScrollArea::vertical()
-            .max_height(400.0)
+            .max_height(500.0)
             .auto_shrink(false);
 
         let mut string_set = false;
@@ -64,6 +81,12 @@ impl DinnerViewer {
         if ui.button("Add entry").clicked() {
             self.active_modal = ActiveModal::AddToPool;
         }
+        let current_day = Local::now().weekday();
+        if current_day != self.current_day {
+            println!("setting current day to {:?}", current_day);
+            self.rotate_entries();
+            self.current_day = current_day;
+        }
     }
 
     fn view_days(&mut self, ui: &mut egui::Ui) {
@@ -75,18 +98,22 @@ impl DinnerViewer {
             .max_height(600.0)
             .auto_shrink(true);
 
+        let current_day_index = self.current_day.num_days_from_monday();
+
         let mut string_set = false;
         ui.separator();
         scroll_area.show(ui, |ui| {
             for (index, day) in self.entries.days().clone().iter().enumerate() {
+                let day_index = (current_day_index as usize + index) % DAYS.len();
+                let weekday = DAYS[day_index];
                 ui.vertical(|ui| {
-                    ui.menu_button(day, |ui| {
+                    ui.menu_button(format!("{}: {}", weekday, day), |ui| {
                         if ui.button("Regenerate Entry").clicked() {
                             let _ = self.entries.regenerate_entry(index);
                         }
                         if ui.button("Edit entry").clicked() {
                             if !string_set {
-                                self.input_entry = day.to_owned();
+                                self.input_entry = day.to_owned().to_owned();
                                 string_set = true;
                             }
                             self.active_modal = ActiveModal::EditEntry(index, string_set);
@@ -177,6 +204,7 @@ impl Default for DinnerViewer {
             input_entry: "".to_owned(),
             active_state: ActiveState::Swapping { first_index: None },
             showing_pool: false,
+            current_day: Local::now().weekday(),
         }
     }
 }
