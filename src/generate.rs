@@ -37,7 +37,7 @@ impl Generate {
     pub fn read_entries(
         inputfile: &str,
         outputfile: &str,
-        mut days: usize,
+        days: usize,
         reset: bool,
     ) -> Result<Self, io::Error> {
         let pool = Self::prepare_pool(inputfile, outputfile, reset)?;
@@ -50,20 +50,33 @@ impl Generate {
                 pool,
             })
         } else {
-            Ok(Self::new(vec![], pool).generate_days(&mut days))
+            Ok(Self::new(vec![], pool).generate_days(days, false))
         }
     }
 
-    pub fn generate_days(&mut self, days: &mut usize) -> Self {
-        if *days > self.pool.len() {
-            *days = self.pool.len()
+    pub fn generate_days(&mut self, days: usize, retain: bool) -> Self {
+        let days = if days > self.pool.len() {
+            self.pool.len()
+        } else {
+            days
+        };
+
+        let selected_entries = &Self::select_random_entries(&mut self.pool, days);
+
+        if retain {
+            for i in &self.days {
+                self.pool.push(i.to_owned());
+            }
         }
 
-        let selected_entries = Self::select_random_entries(&mut self.pool, *days);
         Self {
-            days: selected_entries,
+            days: selected_entries.to_vec(),
             pool: self.pool.clone(),
         }
+    }
+
+    pub fn remove_from_days(&mut self, index: usize) {
+        self.days.remove(index);
     }
 
     fn prepare_pool(
@@ -131,6 +144,7 @@ impl Generate {
         let new_entry = self.pool.remove(random_index);
 
         let removed_entry = std::mem::replace(&mut self.days[index], new_entry);
+        println!("Removed entry: {:?}", removed_entry);
 
         self.pool.push(removed_entry);
 

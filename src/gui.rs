@@ -116,7 +116,7 @@ impl DinnerViewer {
         });
         ui.separator();
         if ui.button("Regenerate").clicked() {
-            self.entries = self.entries.generate_days(&mut 7);
+            self.entries = self.entries.generate_days(self.entries.days().len(), true);
         }
     }
 

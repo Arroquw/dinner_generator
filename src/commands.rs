@@ -25,9 +25,9 @@ fn prepare_generate(file_args: &FileArgs, days: usize, reset: bool) -> Result<Ge
 }
 
 fn generate(args: GenerateArgs) {
-    let mut days = args.days().unwrap_or(7_usize);
+    let days = args.days().unwrap_or(7_usize);
     let mut generate = prepare_generate(args.file_args(), days, args.reset()).unwrap();
-    let _ = generate.generate_days(&mut days);
+    let _ = generate.generate_days(days, false);
     generate.print_output();
     let _ = generate.write_file(
         &args
