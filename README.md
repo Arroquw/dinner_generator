@@ -4,6 +4,6 @@ Generates a specified amount of recipes provided in input.txt to serve as a week
 
 TODO list:
 
-- [ ] Extend current CLI to integrate all functionalities
-- [ ] add a frontend
+- [X] Extend current CLI to integrate all functionalities
+- [X] add a frontend
 - [ ] fetch recipes from somewhere online
